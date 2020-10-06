@@ -1,8 +1,7 @@
-import * as fs from "fs"
 import bodyParser from "body-parser"
 import express, { Request, Response } from "express"
 import expressWs from "express-ws"
-import http from "http"
+import CodeExecutor from './executors/CodeExecutor'
 
 async function main() {
     const serverOptions = {
@@ -59,9 +58,27 @@ async function main() {
     });
 
 
-    const PORT = process.env.PORT || 8090;
-    let srv = app.listen(PORT as number, '0.0.0.0', (port, err) => {
-        if (err) throw err;
+    app.post('/runner/compile', async (req: Request, res: Response) => {
+        setJsonHeaders(res);
+        let unit = JSON.parse(req.body['code'])
+        console.info(unit)
+        const toJson = (obj: unknown): string => JSON.stringify(obj, function replacer(key, value) { return value }, 4);
+        const executor = new CodeExecutor()
+        const compiled = await executor.compile(unit)
+
+        console.info(toJson(compiled))
+        res.send(toJson(compiled));
+    });
+
+    app.post('/runner/execute', async (req: Request, res: Response) => {
+        setJsonHeaders(res);
+        res.send(JSON.stringify('Not implemented'));
+    });
+
+    const port = process.env.PORT || 5000;
+    let srv = app.listen(port as number, '0.0.0.0', (err) => {
+        if (err)
+            throw err;
         console.log(`Server listening on port ${port}!`);
     });
 }
