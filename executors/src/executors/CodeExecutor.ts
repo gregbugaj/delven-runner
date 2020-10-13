@@ -1,7 +1,7 @@
 import { IExecutor, CallbackFunction, CompilationUnit, EvaluationResult } from './executor';
 import { ASTParser, SourceGenerator } from "delven";
 const stream = require('stream')
-const { NodeVM, VMScript } = require('vm2');
+const { VM, NodeVM, VMScript } = require('vm2');
 
 /**
  * Code compiler
@@ -47,8 +47,10 @@ export default class CodeExecutor implements IExecutor {
             const Console = console.Console
             console = new Console(overwrites)
 
+            console.log('capture #1')
             callback()
-            
+
+            console.info('capture #2')
         } catch (ex) {
             exception = ex
             console.log(ex)
@@ -82,13 +84,13 @@ export default class CodeExecutor implements IExecutor {
             }
 
             const start = Date.now();
-            const vm = new NodeVM({
+            const vm = new VM({
                 require: {
                     external: true
                 },
                 console: 'inherit',
                 compiler: 'javascript',
-                fixAsync: true,
+                fixAsync: false,
                 sandbox: {
                     done: (arg) => {
                         console.info('Sandbox complete : ' + Date.now())
@@ -103,19 +105,19 @@ export default class CodeExecutor implements IExecutor {
             let buff = this.capture(()=>{
                 try {
                     let code = `
-                    async function main() {
-                        console.info('Eval : start')
-                        ${script}
-                        console.info('Eval : complete')
-                        // setTimeout(function(){ console.info("Timeout task"); }, 2000);
-                    }
+                        async function main() {
+                            console.info('Eval : start')
+                            ${script}
+                            console.info('Eval : complete')
+                            // setTimeout(function(){ console.info("Timeout task"); }, 2000);
+                        }
 
-                    (async () => {
-                        await main()
-                        done()
-                    })().catch(err => {
-                        console.error("error in main", err)
-                    })
+                        (async () => {
+                            await main()
+                            done()
+                        })().catch(err => {
+                            console.error("error in main", err)
+                        })
                     `
                     let exec = vm.run(code);
                 } catch (err) {
