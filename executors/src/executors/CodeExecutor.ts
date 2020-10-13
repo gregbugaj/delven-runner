@@ -1,8 +1,7 @@
-import { IExecutor, CallbackFunction, CompilationUnit, EvaluationResult} from './executor';
+import { IExecutor, CallbackFunction, CompilationUnit, EvaluationResult } from './executor';
 import { ASTParser, SourceGenerator } from "delven";
 const stream = require('stream')
-const {VM} = require('vm2');
-
+const { NodeVM, VMScript } = require('vm2');
 
 /**
  * Code compiler
@@ -12,80 +11,121 @@ export default class CodeExecutor implements IExecutor {
 
     constructor() {
         console.info(`Setting up executor`)
-        
-        const vm = new VM();
-        vm.run(`process.exit()`); // TypeError: process.exit is not a function
     }
-    
-    evaluate(script: string): Promise<EvaluationResult> {
+
+    capture(callback: CallableFunction) {
+        const _org = console;
+        const original = {
+            stdout: process.stdout,
+            stderr: process.stderr
+        }
+
+        const collection = {
+            stdout: new stream.Writable(),
+            stderr: new stream.Writable()
+        }
+
+        let buffer = ""
+
+        Object.keys(collection).forEach((name) => {
+            collection[name].write = function (chunk, encoding, callback) {
+                _org.log(chunk)
+                buffer += chunk;
+                original[name].write(chunk, encoding, callback)
+            }
+        })
+
+        const options = {}
+        const overwrites = Object.assign({}, {
+            stdout: collection.stdout,
+            stderr: collection.stderr
+        }, options)
+
+        let exception: string | undefined
+        try {
+
+            const Console = console.Console
+            console = new Console(overwrites)
+
+            callback()
+            
+        } catch (ex) {
+            exception = ex
+            console.log(ex)
+        } finally {
+            console = _org
+        }
+
+        console.info('\x1B[96mCaptured stdout\x1B[00m' + new Date().getTime())
+        let fs = require('fs')
+        fs.writeFile('./buffer.txt', buffer, { encoding: 'utf8', flag: "a" },
+            (err) => {
+                if (err) {
+                    return console.log(err);
+                }
+            });
+
+        return buffer
+    }
+
+    evaluate(unit: CompilationUnit): Promise<EvaluationResult> {
         return new Promise((resolve, reject) => {
-            const _org = console;
-
-            const original = {
-                stdout: process.stdout,
-                stderr: process.stderr
+            console.info("Evaluating script")
+            const script = unit.code
+            // Compile script in order to find compilation errors first
+            try {
+                const status = new VMScript(script, 'sandbox.js').compile();
+                console.info('Compilation status', status)
+            } catch (err) {
+                console.error('Failed to compile script.', err);
+                return resolve({ "exception": err, stdout: "", stderr: "" })
             }
 
-            const collection = {
-                stdout: new stream.Writable(),
-                stderr: new stream.Writable()
-            }
+            const start = Date.now();
+            const vm = new NodeVM({
+                require: {
+                    external: true
+                },
+                console: 'inherit',
+                compiler: 'javascript',
+                fixAsync: true,
+                sandbox: {
+                    done: (arg) => {
+                        console.info('Sandbox complete : ' + Date.now())
+                    }
+                }
+            });
 
-            let buffer = ""
+            process.on('uncaughtException', function (err) {
+                console.log('Caught exception: ' + err);
+            });
 
-            Object.keys(collection).forEach((name) => {
-                collection[name].write = function (chunk, encoding, callback) {
-                    _org.log(chunk)
-                    buffer += chunk;
-                    original[name].write(chunk, encoding, callback)
+            let buff = this.capture(()=>{
+                try {
+                    let code = `
+                    async function main() {
+                        console.info('Eval : start')
+                        ${script}
+                        console.info('Eval : complete')
+                        // setTimeout(function(){ console.info("Timeout task"); }, 2000);
+                    }
+
+                    (async () => {
+                        await main()
+                        done()
+                    })().catch(err => {
+                        console.error("error in main", err)
+                    })
+                    `
+                    let exec = vm.run(code);
+                } catch (err) {
+                    console.error('Failed to execute script.', err);
                 }
             })
 
-            const options = {}
-            const overwrites = Object.assign({}, {
-                stdout: collection.stdout,
-                stderr: collection.stderr
-            }, options)
-
-            let exception: string | undefined
-            try {
-
-                const Console = console.Console
-                console = new Console(overwrites)
-                let _eval = (str) => {
-                    return Function(` ${str}`)
-                }
-
-                const fragment = `
-                    'use strict'; 
-                    try {
-                        ${script}
-                    } catch(e){
-                        console.error(e)
-                    }
-                `
-
-                _eval(fragment)()
-
-            } catch (ex) {
-                exception = ex
-                console.log(ex)
-            } finally {
-                console = _org
-            }
-
-            console.info('\x1B[96mCaptured stdout\x1B[00m' + new Date().getTime())
-            console.log(buffer)
-
-            let fs = require('fs')
-            fs.writeFile('./buffer.txt', buffer, { encoding: 'utf8', flag: "a" },
-                (err) => {
-                    if (err) {
-                        return console.log(err);
-                    }
-                });
-
-            return  resolve({ "exception": exception, stdout: buffer, stderr: "" })
+            console.info('LOG 2')
+            console.info(buff)
+            return resolve({ "exception": null, stdout: buff, stderr: "" })
         });
     }
 

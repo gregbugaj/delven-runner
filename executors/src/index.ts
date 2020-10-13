@@ -2,6 +2,7 @@ import bodyParser from "body-parser"
 import express, { Request, Response } from "express"
 import expressWs from "express-ws"
 import CodeExecutor from './executors/CodeExecutor'
+import { toJson  } from "./util";
 
 async function main() {
     const serverOptions = {
@@ -60,19 +61,24 @@ async function main() {
 
     app.post('/runner/compile', async (req: Request, res: Response) => {
         setJsonHeaders(res);
+     
         let unit = JSON.parse(req.body['code'])
-        console.info(unit)
-        const toJson = (obj: unknown): string => JSON.stringify(obj, function replacer(key, value) { return value }, 4);
         const executor = new CodeExecutor()
         const compiled = await executor.compile(unit)
 
-        console.info(toJson(compiled))
         res.send(toJson(compiled));
     });
 
     app.post('/runner/evaluate', async (req: Request, res: Response) => {
-        setJsonHeaders(res);
-        res.send(JSON.stringify('Not implemented'));
+        let unit = JSON.parse(req.body['code'])
+        const executor = new CodeExecutor()
+        const compiled = await executor.evaluate(unit)
+
+        console.info('Evaluated response')
+        console.info(toJson(compiled))
+        console.info(compiled)
+
+        res.send(toJson(compiled));
     });
 
     const port = process.env.PORT || 5000;
