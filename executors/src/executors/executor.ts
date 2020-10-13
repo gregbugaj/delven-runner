@@ -2,6 +2,12 @@ export interface CallbackFunction<T = any> {
     (event: T): void;
 }
 
+
+export type EvaluationResult = {
+    exception?: string
+    stdout?: string
+    stderr?: string
+}
 // both the runner and explorer share this type
 export type CompilationUnit = {
     id: string
@@ -23,6 +29,13 @@ export interface IExecutor {
      * @param script the script to compile
      */
     compile(unit: CompilationUnit): Promise<any>
+
+
+    /**
+     * Evaluate script in a sandbox environment
+     * @param script the script to evaluate
+     */
+    evaluate(script: string): Promise<EvaluationResult>
 
     /**
      * Perform cleanup

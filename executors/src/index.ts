@@ -70,7 +70,7 @@ async function main() {
         res.send(toJson(compiled));
     });
 
-    app.post('/runner/execute', async (req: Request, res: Response) => {
+    app.post('/runner/evaluate', async (req: Request, res: Response) => {
         setJsonHeaders(res);
         res.send(JSON.stringify('Not implemented'));
     });

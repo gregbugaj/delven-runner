@@ -6,8 +6,9 @@
   "private": true,
   "author": "Greg",
   "dependencies": {
+    "@babel/runtime": "^7.10.2",
     "express-ws": "^4.0.0",
-    "@babel/runtime": "^7.10.2"
+    "vm2": "^3.9.2"
   },
   "scripts": {
     "start": "npm run build && node build/index.js",
